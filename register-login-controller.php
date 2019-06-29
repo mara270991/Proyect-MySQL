@@ -1,5 +1,7 @@
 <?php
 
+	require_once 'conexion.php';
+
 	// Inicio la sesión
 	session_start();
 
@@ -63,15 +65,15 @@
 			$errors['rePassword'] = 'Las contraseñas no coinciden';
 		}
 
-		if ( $avatar['error'] != UPLOAD_ERR_OK ) { //si avatar que es un array en la posicion 'error' es distinto a error ok. Es decir, hay error.
-			$errors['avatar'] = 'Subí una imagen';
-		} else {
-			$ext = pathinfo($avatar['name'], PATHINFO_EXTENSION); //sacamos la extensión del archivo
-
-			if ( !in_array($ext, ALLOWED_IMAGE_FORMATS) ) { //en el array no esta la extensión permitida
-				$errors['avatar'] = 'Los formatos permitidos son JPG, PNG y GIF';
-			}
-		}
+		// if ( $avatar['error'] != UPLOAD_ERR_OK ) { //si avatar que es un array en la posicion 'error' es distinto a error ok. Es decir, hay error.
+		// 	$errors['avatar'] = 'Subí una imagen';
+		// } else {
+		// 	$ext = pathinfo($avatar['name'], PATHINFO_EXTENSION); //sacamos la extensión del archivo
+		//
+		// 	if ( !in_array($ext, ALLOWED_IMAGE_FORMATS) ) { //en el array no esta la extensión permitida
+		// 		$errors['avatar'] = 'Los formatos permitidos son JPG, PNG y GIF';
+		// 	}
+		// }
 
 		return $errors;
 	}
@@ -94,62 +96,80 @@
 
 		// Guardamos la imagen en nuestra carpeta
 		move_uploaded_file($tempFile, $finalPath);
-
 		// Retorno el nombre de la imagen para poder guardar el mismo en el JSON
 		return $finalName;
 	}
 	// Función para generar un ID
-	function generateID() {
-		$allUsers = getAllUsers();
+	// function generateID() {
+	// 	$allUsers = getAllUsers();
+	//
+	// 	if ( count($allUsers) == 0 ) {
+	// 		return 1;
+	// 	}
+	// 	$lastUser = array_pop($allUsers);
+	//
+	//
+	// 	return $lastUser['id'] + 1;
+	// }
 
-		if ( count($allUsers) == 0 ) {
-			return 1;
-		}
-		$lastUser = array_pop($allUsers);
 
-
-		return $lastUser['id'] + 1;
-	}
-
-
-	// Función traer todo del JSON
+	// Función traer todo de la BD
+	// function getAllUsers() {
+	//
+	// 	try {
+	// 	$consulta = $base->query("SELECT * from allusers");
+ 	// 	//corre la consulta y me devuelve un resultado dentro de un objeto hijo pdo
+	//
+	// } catch(PDOException $error) {
+	// 	$mensaje = $error->getMessage(); //string descriptiva del error
+	// 	$codigo = $error->getCode(); //codigo tipificado del error
+	//
+	// 	echo("Ocurrió un error con una consulta en la base de datos");
+	// 	die(); //lo mismo que exit()
+	// }
+	//
+	// 	$allUsers = $consulta->fetch(PDO::FETCH_ASSOC);
+	//
+	// 	return $allUsers;
+	// }
 	function getAllUsers() {
-
-		$fileContent = file_get_contents(USERS_JSON_PATH);
-
-		// Decodifico el JSON a un array asociativo, importante el "true"
-		$allUsers = json_decode($fileContent, true);
-
+		$dsn = "mysql:host=localhost;dbname=isabella;port=3306";
+		$opt = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
+		$base = new PDO($dsn, 'root', 'root', $opt);
+		$consulta = $base->query("SELECT * from allusers");
+		$allUsers = $consulta->fetchAll(PDO::FETCH_ASSOC);
 		return $allUsers;
 	}
 
 	// Función para guardar al usuario
-	function saveUser() {
+	function saveUser($file) {
 		// Trimeamos los valores que vinieron por $_POST
-
-		$_POST['user'] = trim($_POST['user']);
-		$_POST['name'] = trim($_POST['name']);
-		$_POST['country'] = trim($_POST['country']);
-		$_POST['email'] = trim($_POST['email']);
-
+		$dsn = "mysql:host=localhost;dbname=isabella;port=3306";
+		$opt = [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION];
+		$base = new PDO($dsn, 'root', 'root', $opt);
+		$user = trim($_POST['user']);
+		$name = trim($_POST['name']);
+		$country = trim($_POST['country']);
+		$email = trim($_POST['email']);
+		$avatar = $file;
+		// $img = saveImage();
 		// Hasheo el password del usuario
-		$_POST['password'] = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
+		$password = $_POST['password'] = password_hash(trim($_POST['password']), PASSWORD_DEFAULT);
+		$base->query("insert into allusers (user, name, country, email, password, avatar) values ('$user', '$name', '$country', '$email', '$password','$avatar')");
 
-		// Genero el ID y lo guardo en una posición de $_POST llamada "id"
 
-		$_POST['id'] = generateID();
+	//acá puedo hacer las validaciones necesarias antes de la query
 
-		unset($_POST['rePassword']);
+	// try {
+	// 	$base->query("insert into allusers (user, name, country, email, password) values ('$user', '$name', '$country', '$email', '$password')"); //corre la consulta y me devuelve un resultado dentro de un objeto hijo pdo
+	//
+	// } catch(PDOException $error) {
+	//
+	// 	echo("Ocurrió un error");
+	// 	die();
+	// }
 
-		$finalUser = $_POST;
-
-		$allUsers = getAllUsers();
-
-		$allUsers[] = $finalUser;
-
-		file_put_contents(USERS_JSON_PATH, json_encode($allUsers));
-
-		return $finalUser;
+		// return $finalUser;
 	}
 	// Función para loguear al usuario
 	/*
@@ -196,6 +216,7 @@
 
 		// Recorro el array de usuarios
 		foreach ($allUsers as $oneUser) {
+
 			// Si la posición "user" del usuario en la iteración coincide con el email que pasé como parámetro
 			if ($oneUser['user'] == $user) {
 				return true;
@@ -229,10 +250,10 @@
 
 		} else {
 			// Si pasamos las 3 validaciones anteriores, busco y  obtengo al usuario con el email que llegó por $_POST
-			$theUser = getUserByEmail($email);
+			$oneUser = getUserByEmail($email);
 
 			// Si el password que recibí por $_POST NO coincide con el password hasheado que está guardado en el usuario
-			if ( !password_verify($password, $theUser['password']) ) {
+			if ( !password_verify($password, $oneUser['password']) ) {
 				$errors['password'] = 'Las credenciales no coinciden';
 			}
 		}
@@ -269,5 +290,6 @@
 		echo "</pre>";
 		exit;
 	}
+
 
  ?>
